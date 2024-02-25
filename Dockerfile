@@ -1,4 +1,4 @@
-FROM go
+FROM golang
 
 # Set the Current Working Directory inside the container
 
