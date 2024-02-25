@@ -1,0 +1,40 @@
+name: Docker Image CI - Sync
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - public/**
+      - go.mod
+      - go.sum
+      - main.go
+  workflow_dispatch:
+    
+jobs:
+
+  build:
+
+    runs-on: self-hosted,x64
+
+    steps:
+    - uses: actions/checkout@v4
+      name: Checkout Repo Code
+
+    - uses: docker/login-action@v3.0.0
+      with:
+        registry: ${{ secrets.DOCKER_REPOSITORY }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - run: |
+        docker build --network=host -t ${{ secrets.DOCKER_REPOSITORY }}/east/${{ secrets.IMAGE_NAME }}:latest -f ./Dockerfile .
+        docker push ${{ secrets.DOCKER_REPOSITORY }}/east/${{ secrets.IMAGE_NAME }}:latest
+        
+    - uses: 8398a7/action-slack@v3
+      name: Slack Notification
+      with:
+        status: ${{ job.status }}
+        fields: repo,message,commit,author,action,eventName,ref,workflow,job,took # selectable (default: repo,message)
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} # required
+      if: always() # Pick up events even if the job fails or is canceled.
