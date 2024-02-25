@@ -1,7 +1,7 @@
 version: '3'
 services:
   pwnmothership:
-    image: core.harbor.w.gallis.cloud/east/pwnmothership:latest
+    image: pwnmothership:latest
     container_name: pwnmothership
     build:
       context: .
