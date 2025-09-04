@@ -15,8 +15,8 @@ jobs:
 
   build:
 
-    runs-on: self-hosted,x64
-
+    runs-on: gallis-gh-runner
+    
     steps:
     - uses: actions/checkout@v4
       name: Checkout Repo Code
@@ -39,3 +39,4 @@ jobs:
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} # required
       if: always() # Pick up events even if the job fails or is canceled.
+
