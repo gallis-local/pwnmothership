@@ -10,33 +10,65 @@ on:
       - main.go
       - Dockerfile
   workflow_dispatch:
-    
+  
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+  
 jobs:
-
   build:
-
     runs-on: gallis-gh-runner
-    
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       name: Checkout Repo Code
 
-    - uses: docker/login-action@v3.0.0
+    - name: Setup HashiCorp Vault
+      uses: hashicorp/vault-action@v3
       with:
-        registry: ${{ secrets.DOCKER_REPOSITORY }}
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+        url: ${{vars.VAULT_ADDR}}
+        method: jwt
+        role: github-actions-role
+        path: github-actions
+        secrets: |
+          prod-kubernetes/data/harbor/arm registry-name | HARBOR_NAME ;          
+          prod-kubernetes/data/harbor/arm registry-library | HARBOR_LIBRARY ;
+          prod-kubernetes/data/harbor/arm github-actions-robot-username | HARBOR_USERNAME ;
+          prod-kubernetes/data/harbor/arm github-actions-robot-password | HARBOR_PASSWORD ;
+          prod-kubernetes/data/github/slack-webhooks slack-repo-channel | SLACK_WEBHOOK_URL ;
 
-    - run: |
-        docker build --network=host -t ${{ secrets.DOCKER_REPOSITORY }}/${{ secrets.DOCKER_LIBRARY }}/${{ secrets.IMAGE_NAME }}:latest -f ./Dockerfile .
-        docker push ${{ secrets.DOCKER_REPOSITORY }}/${{ secrets.DOCKER_LIBRARY}}/${{ secrets.IMAGE_NAME }}:latest
+    - uses: docker/login-action@v3.5.0
+      with:
+        registry: ${{ env.HARBOR_NAME }}
+        username: ${{ env.HARBOR_USERNAME }}
+        password: ${{ env.HARBOR_PASSWORD }}
+
+    - name: Install QEMU
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y qemu-user-static
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
         
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: network=host      
+
+    - name: Build and push
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ env.HARBOR_NAME }}/${{ env.HARBOR_LIBRARY }}/${{ vars.IMAGE_NAME }}:latest
+
     - uses: 8398a7/action-slack@v3
       name: Slack Notification
       with:
         status: ${{ job.status }}
         fields: repo,message,commit,author,action,eventName,ref,workflow,job,took # selectable (default: repo,message)
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} # required
+      #env:
+        #SLACK_WEBHOOK_URL: ${{ env.SLACK_WEBHOOK_URL }} # required
       if: always() # Pick up events even if the job fails or is canceled.
-
